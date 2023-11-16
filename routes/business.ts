@@ -5,6 +5,7 @@ import Authorization from "@/middlewares/authorization";
 import Business from "@/models/Business";
 import Business_Categories from "@/models/Business_Categories";
 import Categories from "@/models/Categories";
+import Photos from "@/models/Photos";
 import Review from "@/models/Review";
 import User from "@/models/User";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@/types/business";
 import express, { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { Op, UniqueConstraintError, literal } from "sequelize";
+import { Op, UniqueConstraintError, fn, literal } from "sequelize";
 const route = express.Router();
 
 route.get("/", Authorization, async (req: Request, res: Response) => {
@@ -134,6 +135,49 @@ route.get("/", Authorization, async (req: Request, res: Response) => {
   );
 });
 
+route.get("/:id", Authorization, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const dataBusiness = await Business.findOne({
+    include: [
+      {
+        model: Business_Categories,
+        include: [Categories],
+      },
+      {
+        model: Photos,
+        attributes: ["photo"],
+      },
+    ],
+    attributes: {
+      include: [
+        [
+          // Note the wrapping parentheses in the call below!
+          literal(`(
+                  select count(*) 
+                  from "Reviews" 
+                  where "Reviews".id="Business".id
+              )`),
+          "reviewCount",
+        ],
+      ],
+    },
+
+    where: {
+      id: fn("uuid_or_null", id),
+    },
+  });
+
+  if (!dataBusiness) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json(wrapperResponse(null, "Data Not Found"));
+  }
+
+  return res
+    .status(StatusCodes.OK)
+    .json(wrapperResponse(dataBusiness, "[GET] detail business data"));
+});
+
 route.post("/", Authorization, async (req: Request, res: Response) => {
   const dataRequest = req.body as Business_Request;
 
@@ -142,6 +186,20 @@ route.post("/", Authorization, async (req: Request, res: Response) => {
     const resSubmit = await Business.create({
       ...dataRequest,
     });
+
+    const requestCategories = dataRequest.categories.map((el) => ({
+      business_id: resSubmit.id,
+      category_id: el,
+    }));
+
+    await Business_Categories.bulkCreate(requestCategories);
+
+    const requestPhotos = dataRequest.photos.map((el) => ({
+      business_id: resSubmit.id,
+      photo: el,
+    }));
+
+    await Photos.bulkCreate(requestPhotos);
 
     return res
       .status(StatusCodes.OK)
@@ -245,6 +303,36 @@ route.get(
         "[GET] Review Business"
       )
     );
+  }
+);
+
+route.delete(
+  "/:id/reviews",
+  Authorization,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const t = await db.transaction();
+    try {
+      const resSubmit = await Review.destroy({ where: { id } });
+
+      return res
+        .status(StatusCodes.OK)
+        .json(wrapperResponse(resSubmit, "[DELETE] Review data"));
+    } catch (err) {
+      await t.rollback();
+      let message = "INTERNAL SERVER ERROR";
+
+      if (err instanceof UniqueConstraintError) {
+        message = err.errors[0].message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+
+      return res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json(wrapperResponse(null, message));
+    }
   }
 );
 

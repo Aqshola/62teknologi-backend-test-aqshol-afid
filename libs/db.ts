@@ -13,6 +13,17 @@ export const db = new Sequelize({
 export const DbConnection = async () => {
   try {
     await db.authenticate();
+
+    await db.query(`
+      CREATE OR REPLACE FUNCTION uuid_or_null(str text)
+      RETURNS uuid AS $$
+      BEGIN
+        RETURN str::uuid;
+      EXCEPTION WHEN invalid_text_representation THEN
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+  `);
     console.log("CONNECT SUCCESS");
     return db;
   } catch (error) {

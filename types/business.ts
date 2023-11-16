@@ -34,7 +34,7 @@ export interface Business_Response_Entity {
 export interface Business_Request {
   alias: string;
   name: string;
-  image_url: Date;
+  image_url: string;
   rating: number;
   url: string;
 
@@ -51,6 +51,9 @@ export interface Business_Request {
   zip_code: string;
   country: string;
   state: string;
+
+  categories: Array<string>;
+  photos: Array<string>;
 
   //CLOSED
   phone: string;

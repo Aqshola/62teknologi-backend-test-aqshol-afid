@@ -1,5 +1,6 @@
 import Sequelize, { DataTypes, Model } from "sequelize";
 import { db } from "@/libs/db";
+import Business from "./Business";
 
 class Photos extends Model {
   declare id: string;

@@ -5,6 +5,8 @@ import Authorization from "@/middlewares/authorization";
 import Business from "@/models/Business";
 import Business_Categories from "@/models/Business_Categories";
 import Categories from "@/models/Categories";
+import Review from "@/models/Review";
+import User from "@/models/User";
 import {
   Additional_Business_Raw_Query,
   Business_Query,
@@ -214,5 +216,36 @@ route.delete("/:id", Authorization, async (req: Request, res: Response) => {
       .json(wrapperResponse(null, message));
   }
 });
+
+route.get(
+  "/:id/reviews",
+  Authorization,
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    let { limit, offset } = req.query as unknown as Business_Query;
+
+    const dataReviews = await Review.findAll({
+      where: {
+        business_id: id,
+      },
+      include: {
+        model: User,
+        attributes: ["username"],
+      },
+      limit: limit || LIMIT_SHOW_BUSINESS,
+      offset: offset || 0,
+    });
+
+    return res.status(StatusCodes.OK).json(
+      wrapperResponse(
+        {
+          review: dataReviews,
+          total: dataReviews.length,
+        },
+        "[GET] Review Business"
+      )
+    );
+  }
+);
 
 export default route;
